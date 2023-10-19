@@ -1,0 +1,281 @@
+---
+title: "链家数据分析报告#"
+author: "王晨秋子"
+date: "2023-10-17"
+output: 
+     html_document:
+       toc: true
+--
+
+```{r}
+#导入包
+install.packages("devtools")
+library(devtools)
+install.packages("rstatix")
+library(rstatix)
+install.packages("tidyverse")
+library(tidyverse)
+install.packages("sampling")
+library(sampling)
+install.packages("patchwork")
+library(patchwork)
+install.packages("gridExtra") 
+library(gridExtra)
+install.packages("moments") 
+library(moments)
+install.packages("nortest") 
+library(nortest)
+install.packages("dplyr")
+library(dplyr)
+install.packages("readr")
+library(readr)
+install.packages("tidyr")
+library(tidyr)
+install.packages("knitr")
+library(knitr)
+install.packages("gridExtra")
+library(gridExtra)
+
+#载入数据
+lj_wuhan<- read_csv("/Users/chelsea/Documents/02jingrong/02assignment/data/2023-09-12_cleaned.csv")
+#中文显示
+theme_set(theme(text=element_text(family="Songti SC",size=12,face = "bold")))
+```
+## 研究对象
+-数据表（lj) 来自于链家武汉二手房网站(https://wh.lianjia.com/ershoufang/)数据，共包括 property_name,property_region, price_ttl, price_sqm, bedrooms, livingrooms, building_area, directions1,directions2, decoration, property_t_height, property_height, property_style, followers, near_subway, if_2y, has_key, vr 等 18个变量, 共 3000 行。
+-各变量的简短信息：
+```{r}
+glimpse(lj)
+```
+##研究结果
+一、我的主要发现
+数据链家网二手房共位于1345个小区，所处87个区域，房屋总价达467588.3万元，房屋单价均价为均价15148.49元，受到19841位关注者关注。
+```{r}
+#查看数据变量类型
+str(lj_wuhan)
+#变量和类型数
+lj_pivot <- lj_wuhan %>%
+  gather(变量名, 值, -property_name) %>%
+  group_by(变量名) %>%
+  summarize(总数 = n_distinct(值))
+lj_pivot
+#|property_name|小区名字，1345 个小区
+lj_property_name <- lj_wuhan %>%
+  count(property_name) 
+lj_property_name
+#|property_region|所处区域|，87个区域
+lj_property_region <- lj_wuhan %>%
+  count(property_region) 
+lj_property_region
+#|price_ttl|房屋总价，单位万元|，总467588.3万元
+ttl_sum <- sum(lj_wuhan$price_ttl)
+ttl_sum 
+#|price_sqm|房屋单价，单位元|，均价15148.49元
+sqm_mean <- mean(lj_wuhan$price_sqm)
+sqm_mean
+#|followers|关注人数|，[1] 19841
+(followers_sum <- sum(lj_wuhan$followers))
+```
+
+二、探索性分析
+1.房屋单价价格特点
+-集中趋势：
+均价为15148.49元,中位数为14404元，众数为14394元，
+25%的房屋单价低于10797元，50%的房屋单价低于14404元，75%的房屋单价低于18211元。
+```{r}
+summary_sqm<- summary(lj_wuhan$price_sqm)
+(mean_value <- mean(lj_wuhan$price_sqm)) #均值
+(median_value <- median(lj_wuhan$price_sqm))#中位数
+(mode_value <- which.max(table(lj_wuhan$price_sqm)))#众数 
+(quartile_value <- quantile(lj_wuhan$price_sqm, probs = seq(0, 1, by = 0.25), type = 1))  #四分位数
+```
+-离散趋势：
+range=42885,var=39982547,sqrt=6323.175，
+P = 366.97, p-value < 2.2e-16,不服从正态分布
+```{r}
+(range_sqm<-max(lj_wuhan$price_sqm)-min(lj_wuhan$price_sqm))#极差
+(var_sqm<-var(lj_wuhan$price_sqm)) #方差
+(sqrt_sqm<-sqrt(var_sqm)) #标准差
+(pearson.test(lj_wuhan$price_sqm))#P = 366.97, p-value < 2.2e-16,不服从正态分布
+```
+-形态：数据分布存在一定程度右偏移且比正态分布更陡峭。
+```{r}
+par(mfrow=c(2,3))
+barplot(lj_wuhan$price_sqm)#条形图
+hist(lj_wuhan$price_sqm)#直方图
+dotchart(lj_wuhan$price_sqm)#点图
+boxplot(lj_wuhan$price_sqm)#箱线图
+qqnorm(lj_wuhan$price_sqm)#正态概率图 不太服从正态分布
+plot(lj_wuhan$price_sqm)#散点图
+(sk_sqm<-skewness(lj_wuhan$price_sqm))#偏度[1] 1.080004 右偏移
+(kurtosis_sqm<-kurtosis(lj_wuhan$price_sqm))#峰度[1] 5.028977 分布陡峭
+```
+
+2.卧室数数量特点
+-集中趋势：
+平均卧室数为2.695间,中位数为3间，众数为3间，
+25%的房屋卧室少于2间，50%的房屋卧室少于3间。
+```{r}
+summary_bedrooms<- summary(lj_wuhan$bedrooms)
+(mean_bedrooms <- mean(lj_wuhan$bedrooms)) #均值
+(median_bedrooms <- median(lj_wuhan$bedrooms))#中位数
+(mode_bedrooms <- which.max(table(lj_wuhan$bedrooms)))#众数 
+(quartile_bedrooms<- quantile(lj_wuhan$bedrooms, probs = seq(0, 1, by = 0.25), type = 1))  #四分位数
+```
+-离散趋势：
+range=6,var=0.5328193,sqrt=0.7299447，
+P = 59908, p-value < 2.2e-16,不服从正态分布
+```{r}
+(range_bedrooms<-max(lj_wuhan$bedrooms)-min(lj_wuhan$bedrooms))#极差
+(var_bedrooms<-var(lj_wuhan$bedrooms)) #方差
+(sqrt_bedrooms<-sqrt(var_bedrooms)) #标准差
+(pearson.test(lj_wuhan$bedrooms))#P = 59908, p-value < 2.2e-16,不服从正态分布
+```
+-形态：数据分布相对对称且比正态分布更陡峭。
+```{r}
+par(mfrow=c(2,3))
+barplot(lj_wuhan$bedrooms)#条形图
+hist(lj_wuhan$bedrooms)#直方图
+dotchart(lj_wuhan$bedrooms)#点图
+boxplot(lj_wuhan$bedrooms)#箱线图
+qqnorm(lj_wuhan$bedrooms)#正态概率图 不太服从正态分布
+plot(lj_wuhan$bedrooms)#散点图
+(sk_bedrooms<-skewness(lj_wuhan$bedrooms))#偏度[1] 0.1356705 接近于0，说明数据分布相对对称，没有明显的偏斜。
+(kurtosis_bedrooms<-kurtosis(lj_wuhan$bedrooms))#峰度[1] 4.638803分布陡峭
+```
+
+3.客厅数数量特点
+-集中趋势：
+平均客厅数为1.708667间,中位数为2间，众数为2间，
+25%的房屋卧室少于1间，50%的房屋卧室少于2间。
+```{r}
+summary_livingrooms<- summary(lj_wuhan$livingrooms)
+(mean_livingrooms <- mean(lj_wuhan$livingrooms)) #均值
+(median_livingrooms <- median(lj_wuhan$livingrooms))#中位数
+(mode_livingrooms <- which.max(table(lj_wuhan$livingrooms)))#众数 
+(quartile_livingrooms<- quantile(lj_wuhan$livingrooms, probs = seq(0, 1, by = 0.25), type = 1))  #四分位数
+```
+-离散趋势：
+range=4,var=0.2238662,sqrt=0.473145，
+P = 84592, p-value < 2.2e-16,不服从正态分布。
+```{r}
+(range_livingrooms<-max(lj_wuhan$livingrooms)-min(lj_wuhan$livingrooms))#极差
+(var_livingrooms<-var(lj_wuhan$livingrooms)) #方差
+(sqrt_livingrooms<-sqrt(var_livingrooms)) #标准差
+(pearson.test(lj_wuhan$livingrooms))#P = 84592, p-value < 2.2e-16,不服从正态分布
+```
+-形态：数据分布呈现左偏，峰度为2.817786接近于正态分布。
+```{r}
+par(mfrow=c(2,3))
+barplot(lj_wuhan$livingrooms)#条形图
+hist(lj_wuhan$livingrooms)#直方图
+dotchart(lj_wuhan$livingrooms)#点图
+boxplot(lj_wuhan$livingrooms)#箱线图
+qqnorm(lj_wuhan$livingrooms)#正态概率图 不太服从正态分布
+plot(lj_wuhan$livingrooms)#散点图
+(sk_livingrooms<-skewness(lj_wuhan$livingrooms))#偏度[1] -0.9919179
+(kurtosis_livingrooms<-kurtosis(lj_wuhan$livingrooms))#峰度[1] 2.817786
+```
+
+二、探索性分析
+1.房间数量和房屋单价的关系
+（1）卧室数: 皮尔逊相关系数=0.1063145，接近于0，卧室数量与房屋单价的关联度较弱
+```{r}
+# 清理数据
+br <- lj_wuhan %>%
+  select(bedrooms, price_sqm)
+missing_br <- is.na(br$bedrooms) | is.na(br$price_sqm)  # 删掉NA
+br1 <- br[!missing_br, ] 
+#关系检验、数值型
+correlation_brps <- cor(br1$bedrooms, br1$price_sqm, method = "pearson")
+print(correlation_brps)#相关系数为0.1063145，接近于0，说明两个变量之间的线性关系较弱。
+#图
+plot(lj_wuhan$bedrooms, lj_wuhan$price_sqm, xlab = "房间数", ylab = "房屋单价", main = "Scatter plot of Bedrooms vs Price per sqm")
+```
+（2）客厅数: 皮尔逊相关系数=0.06178822，接近于0，客厅数量与房屋单价的关联度较弱
+```{r}
+# 清理数据
+lr <- lj_wuhan %>%
+  select(livingrooms, price_sqm)
+missing_lr <- is.na(lr$livingrooms) | is.na(lr$price_sqm)  # 删掉NA
+lr1 <- lr[!missing_lr, ] 
+#关系检验、数值型
+correlation_lr <- cor(lr1$livingrooms, lr1$price_sqm,method = "pearson")
+print(correlation_lr)#[1] 0.06178822
+#图
+plot(lr1$livingrooms, lr1$price_sqm, xlab = "客厅数", ylab = "房屋单价", main = "Scatter plot of livingrooms vs Price per sqm")
+```
+所以房间数对房屋单价关联度较弱。
+
+2.区位特点和房屋单价的关系
+（1）所处区域:根据方差分析的结果，我们可以看到property_region对于price_sqm存在显著影响（p < 0.001）。区位特点和房屋单价有较大关联性。
+```{r}
+# 清理数据
+pr <- lj_wuhan %>%
+  select(property_region, price_sqm)
+missing_pr <- is.na(pr$property_region) | is.na(pr$price_sqm)  # 删掉NA
+pr1 <- pr[!missing_pr, ] 
+# 方差分析
+anova_result <- aov(price_sqm ~ property_region, data = pr1)
+print(summary(anova_result))#propertyregion对pricesqm的影响是显著的（Pr(>F) < 0.001）
+# 根据price_sqm对property_region重新排序
+pr1 <- pr1 %>%
+  arrange(price_sqm) %>%
+  mutate(property_region = factor(property_region, levels = unique(property_region)))
+# 绘制线性回归图
+ggplot(pr1, aes(x = property_region, y = price_sqm)) +
+  geom_point(color="orange",alpha=40) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "property_region", y = "price_sqm")
+```
+（2）是否靠近地铁：根据方差分析的结果，我们可以看到near_subway对于price_sqm存在显著影响（p < 0.001）。是否靠近地铁和房屋单价有较大关联性。
+```{r}
+#清理数据
+ns <- lj_wuhan %>%
+  select(near_subway, price_sqm)
+ns1<- ns %>% filter(near_subway == "近地铁" | is.na(near_subway))
+#NA值替换为"不近"
+ns1 <- ns1 %>%
+  mutate(near_subway = ifelse(is.na(near_subway), "不近", near_subway))
+# 将'near_subway'转换为因子类型
+ns1$near_subway <- as.factor(ns1$near_subway)
+# 方差分析
+anova_model_near_subway <- aov(price_sqm ~ near_subway, data = ns1)
+summary(anova_model_near_subway)#nearsubway对pricesqm的影响是显著的（Pr(>F) < 0.001）
+#可视化
+ns1 %>%
+  ggplot(aes(x=near_subway,y=price_sqm))+
+  geom_boxplot()  +
+  stat_summary(geom = "text", fun = function(x) round(quantile(x, c(0.25, 0.75)), 2), 
+               aes(label = paste0("Q", c(1, 3), ": ", after_stat(y)), color = "orange"),
+               vjust = -1, hjust = -0.5)+
+  stat_summary(geom = "text", fun = mean, aes(label = paste0("Mean: ", round(..y.., 2)),color = "purple"),
+               vjust = 0.5, hjust = -0.3)+
+  labs(title = "箱线图", x = "近地铁", y = "每平米价格")
+```
+所以区位特点对房屋单价有显著影响。
+
+3.建筑形式和房屋单价的关系
+建筑形式:根据方差分析的结果，我们可以看到property_style对于price_sqm存在显著影响（p > 0.001），所以建筑形式对房屋单价关联度较弱。
+```{r}
+# 清理数据
+prs <- lj_wuhan %>%
+  select(property_style, price_sqm)
+missing_prs <- is.na(prs$property_style) | is.na(prs$price_sqm) |prs$property_style== "暂无数据"   # 删掉NA
+prs1 <- prs[!missing_prs, ]
+# 将'property_style'转换为因子类型
+prs1$property_style <- as.factor(prs1$property_style)
+# 方差分析
+anova_model_property_style <- aov(price_sqm ~ property_style, data = prs1)
+summary(anova_model_property_style)#Pr(>F)=4.39e-10  > 0.001, 关联度较弱。
+prs1 %>%
+  ggplot(aes(x=property_style,y=price_sqm))+
+  geom_boxplot()  +
+  stat_summary(geom = "text", fun = mean, aes(label = paste0("Mean: ", round(..y.., 2)),color = "purple"),
+               vjust = 2, hjust = 0.5)+
+  labs(title = "箱线图", x = "建筑形式", y = "房间单价")#可视化
+
+```
+
+##结论
+在各变量与和房屋单价描述性统计分析方面，建筑形式和房间数量对房屋单价的相关性并不明显，区位特点与房屋单价的相关性有较大关联。
